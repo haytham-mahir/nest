@@ -96,7 +96,7 @@ async function decLocal(str){
 }
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
 let saveT=null;
-function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{LS.set('nest.state',await encLocal(S))},250)}
+function save(o={}){if(!o.remote)S._t=Math.max(Date.now(),(S._t||0)+1);clearTimeout(saveT);saveT=setTimeout(async()=>{const e=await encLocal(S);LS.set('nest.state',e);if(!o.remote&&typeof cloudPush==='function')cloudPush(e)},250)}
 
 
 function freshState(base){
@@ -122,6 +122,7 @@ async function boot(key){
   for(const r of BASE.recurring) if(!S.recurring.find(x=>x.id===r.id)) S.recurring.push(JSON.parse(JSON.stringify(r)));
   S.settings={...BASE.settings,...S.settings};
   onBoot();
+  if(typeof cloudStart==='function')cloudStart();
 }
 
 
@@ -232,7 +233,7 @@ function hist(){
 
 
 
-Object.assign(I,{chev:'<path d="M6 9l6 6 6-6"/>',right:'<path d="M9 6l6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',back:'<path d="M15 6l-6 6 6 6"/>',del:'<path d="M21 5H9l-6 7 6 7h12z"/><path d="M17 9l-6 6M11 9l6 6"/>',insights:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>'});
+Object.assign(I,{chev:'<path d="M6 9l6 6 6-6"/>',right:'<path d="M9 6l6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',back:'<path d="M15 6l-6 6 6 6"/>',del:'<path d="M21 5H9l-6 7 6 7h12z"/><path d="M17 9l-6 6M11 9l6 6"/>',insights:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',cloud:'<path d="M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z"/>'});
 
 const SECTIONS=[
  {id:'home',n:'Home',i:'home',sub:()=>nice(today(),{dow:1,y:1})},
@@ -611,8 +612,9 @@ function vSettings(){
    ${pays.map(r=>`<div class="grid" style="grid-template-columns:1.4fr 1fr;gap:10px"><label class="f"><span>${r.id==='pay1'?'1st':'2nd'} paycheque</span><input class="in num" type="number" inputmode="decimal" value="${r.amount}" onchange="S.recurring.find(x=>x.id==='${r.id}').amount=+this.value;save();render()"></label><label class="f"><span>Day of month</span><input class="in num" type="number" inputmode="numeric" min="1" max="31" value="${r.day}" onchange="S.recurring.find(x=>x.id==='${r.id}').day=+this.value;save();render()"></label></div>`).join('')}
    <div class="note" style="margin:-4px 0 14px">Your 16 pays (Jan–Aug) averaged $1,786, landing around the 4th–8th and the 19th–22nd.</div>
    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><label class="f"><span>Safety buffer</span><input class="in num" type="number" inputmode="decimal" value="${st.buffer}" onchange="S.settings.buffer=+this.value;save();render()"></label><label class="f"><span>Monthly savings</span><input class="in num" type="number" inputmode="decimal" value="${st.savingsMonthly}" onchange="S.settings.savingsMonthly=+this.value;save();render()"></label></div></div>
+   <div class="card"><div class="ch">${icon('cloud')}<h3>Cloud sync</h3></div><div id="cloudbox">${cloudCard()}</div></div>
    <div class="card"><div class="ch">${icon('lock')}<h3>Privacy & data</h3></div>
-   <div class="note" style="margin-bottom:16px">Your statement data is published only as an encrypted vault that your passphrase unlocks. Logs and edits stay encrypted on this device. To move them to another device, export here and import there.</div>
+   <div class="note" style="margin-bottom:16px">Your statement data is published only as an encrypted vault that your passphrase unlocks. Logs and edits are encrypted on this device before anything is saved or synced.</div>
    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><button class="btn ghost" onclick="exportData()">Export backup</button><label class="btn ghost">Import backup<input type="file" accept=".json" class="hidden" onchange="importData(this.files[0])"></label><button class="btn ghost" onclick="location.reload()">${icon('lock')} Lock</button><button class="btn ghost" onclick="LS.del('nest.key');toast('Passphrase needed next time')">Forget device</button></div>
    <button class="btn ghost block" style="color:var(--red)" onclick="if(confirm('Erase all your logs and edits on this device?')){S=freshState(BASE);save();render();toast('Reset')}">Reset local edits</button>
    <div class="note" style="margin-top:16px">Scotiabank chequing Jan–Aug 2026 · Momentum Visa Dec 26, 2025 – Oct 25, 2026 · ${BASE.tx.length} transactions, reconciled to the cent.</div></div></div>`;
@@ -688,3 +690,59 @@ $('#lockform').addEventListener('submit',async e=>{
   }catch(err){hideSplash();$('#lockerr').textContent='That passphrase didn’t work. Try again.';const i=$('#pass');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake')}
 });
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* ---------- Cloud sync: Firebase (Google sign-in + Firestore), ciphertext only ---------- */
+const FB_CFG={apiKey:"AIzaSyAHPbr8HPUim5JSZReiPRr5nKHgL_T-OlA",authDomain:"nest-household-f73fa.firebaseapp.com",projectId:"nest-household-f73fa",storageBucket:"nest-household-f73fa.firebasestorage.app",messagingSenderId:"530627324315",appId:"1:530627324315:web:8208e8876855ea84c4993e"};
+const FB_V='10.12.2',FB_URL=m=>`https://www.gstatic.com/firebasejs/${FB_V}/firebase-${m}.js`;
+const CL={fb:null,user:null,status:'off',msg:'',last:0,unsub:null,pushT:null,pending:null};
+async function fbLoad(){
+  if(CL.fb) return CL.fb;
+  const [app,auth,fs]=await Promise.all([import(FB_URL('app')),import(FB_URL('auth')),import(FB_URL('firestore'))]);
+  const a=app.initializeApp(FB_CFG),au=auth.getAuth(a),db=fs.getFirestore(a);
+  CL.fb={auth,fs,au,db,ref:fs.doc(db,'households','main')};
+  auth.onAuthStateChanged(au,u=>{CL.user=u;if(u)cloudListen();else{CL.unsub?.();CL.unsub=null;cloudSet(LS.get('nest.sync')?'signedout':'off')}});
+  return CL.fb;
+}
+function cloudSet(st,msg=''){CL.status=st;CL.msg=msg;const b=document.getElementById('cloudbox');if(b)b.innerHTML=cloudCard();const d=document.getElementById('clouddot');if(d)d.dataset.s=st}
+function cloudStart(){if(LS.get('nest.sync'))fbLoad().catch(e=>cloudSet('error','Could not reach the sync service. Your data is safe on this device.'))}
+window.cloudConnect=async()=>{
+  try{cloudSet('busy','Opening Google sign-in…');const {auth,au}=await fbLoad();LS.set('nest.sync','1');
+    const p=new auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+    try{await auth.signInWithPopup(au,p)}catch(e){if(/popup-blocked|operation-not-supported/.test(e.code||''))return auth.signInWithRedirect(au,p);throw e}
+  }catch(e){cloudSet(CL.user?'on':'signedout',/popup-closed|cancelled/.test(e.code||'')?'':'Sign-in did not complete.')}
+};
+window.cloudDisconnect=async()=>{LS.del('nest.sync');CL.unsub?.();CL.unsub=null;try{if(CL.fb)await CL.fb.auth.signOut(CL.fb.au)}catch(e){}CL.user=null;cloudSet('off');toast('Sync turned off on this device')};
+function cloudListen(){
+  const {fs,ref}=CL.fb;CL.unsub?.();cloudSet('busy','Syncing…');
+  CL.unsub=fs.onSnapshot(ref,async snap=>{
+    if(snap.metadata.hasPendingWrites) return;
+    if(!snap.exists()){cloudPushNow(await encLocal(S));return}
+    const d=snap.data();let R;
+    try{R=await decLocal(JSON.stringify({iv:d.iv,ct:d.ct}))}catch(e){cloudSet('error','The cloud copy uses a different passphrase, so nothing was changed.');return}
+    const rt=R._t||0,lt=S._t||0;
+    if(rt>lt){S=R;save({remote:true});render();toast('Synced from your other device')}
+    else if(lt>rt){cloudPushNow(await encLocal(S));return}
+    CL.last=Date.now();cloudSet('on');
+  },e=>{
+    if(e.code==='permission-denied'){cloudSet('denied',`${CL.user?.email||'This account'} is not allowed to open this household.`);try{CL.fb.auth.signOut(CL.fb.au)}catch(_){}}
+    else cloudSet('error','Sync paused. It will retry when you are back online.');
+  });
+}
+function cloudPush(enc){if(!CL.user||!CL.fb)return;CL.pending=enc;clearTimeout(CL.pushT);CL.pushT=setTimeout(()=>cloudPushNow(CL.pending),1200)}
+async function cloudPushNow(enc){
+  if(!CL.user||!CL.fb)return;const {fs,ref}=CL.fb,o=JSON.parse(enc);
+  try{cloudSet('busy','Saving…');await fs.setDoc(ref,{v:1,iv:o.iv,ct:o.ct,updated:fs.serverTimestamp(),by:CL.user.uid});CL.last=Date.now();cloudSet('on')}
+  catch(e){cloudSet(e.code==='permission-denied'?'denied':'error',e.code==='permission-denied'?'This account is not allowed to save here.':'Could not save to the cloud. Changes are kept on this device and will sync later.')}
+}
+window.cloudSyncNow=async()=>{if(CL.user)cloudPushNow(await encLocal(S))};
+function cloudCard(){
+  const st=CL.status,u=CL.user,t=CL.last?new Date(CL.last).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'';
+  const head={off:'Off · this device only',signedout:'Signed out',busy:CL.msg||'Working…',on:'Synced'+(t?' · '+t:''),error:'Needs attention',denied:'Access denied'}[st]||st;
+  const col={on:'var(--green)',busy:'var(--gold)',error:'var(--red)',denied:'var(--red)'}[st]||'var(--tx3)';
+  return `<div class="between" style="margin-bottom:10px"><b style="font-size:14px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:8px;vertical-align:1px"></span>${esc(head)}</b></div>
+  ${u?`<div class="note" style="margin-bottom:12px">Signed in as <b>${esc(u.email)}</b></div>`:''}
+  ${CL.msg&&st!=='busy'?`<div class="note" style="margin-bottom:12px;color:${col}">${esc(CL.msg)}</div>`:''}
+  <div class="note" style="margin-bottom:16px">Keeps your logs, balances and edits the same on your phone and computer. Everything is encrypted with your passphrase before it leaves this device, so the database only ever holds unreadable ciphertext, and only your Google account is allowed to open it.</div>
+  ${u?`<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><button class="btn ghost" onclick="cloudSyncNow()">${icon('refresh')} Sync now</button><button class="btn ghost" onclick="cloudDisconnect()">Turn off</button></div>`
+     :`<button class="btn gold block" onclick="cloudConnect()">Connect with Google</button>`}`;
+}
