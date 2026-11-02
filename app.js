@@ -409,14 +409,14 @@ function lineChart(el,pts,o={}){
   const x=i=>P.l+i*(W-P.l-P.r)/(pts.length-1),y=v=>P.t+(mx-v)*(Hh-P.t-P.b)/(mx-mn);
   const line=pts.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.y).toFixed(1)).join(' ');
   const area=line+` L${x(pts.length-1)} ${Hh-P.b} L${x(0)} ${Hh-P.b} Z`;
-  let grid='';if(!o.mini)for(let v=mn;v<=mx+1e-6;v+=st)grid+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,.05)"/><text x="${P.l-8}" y="${y(v)+4}" fill="#6b7486" font-size="10.5" text-anchor="end">${fmt(v)}</text>`;
-  let xl='';if(!o.mini){const n=W<500?4:6,step=Math.ceil(pts.length/n);pts.forEach((p,i)=>{if(i%step===0)xl+=`<text x="${x(i)}" y="${Hh-6}" fill="#6b7486" font-size="10.5" text-anchor="${i===0?'start':'middle'}">${nice(p.date)}</text>`})}
+  let grid='';if(!o.mini)for(let v=mn;v<=mx+1e-6;v+=st)grid+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,.05)"/><text x="${P.l-8}" y="${y(v)+4}" fill="#6f8a84" font-size="10.5" text-anchor="end">${fmt(v)}</text>`;
+  let xl='';if(!o.mini){const n=W<500?4:6,step=Math.ceil(pts.length/n);pts.forEach((p,i)=>{if(i%step===0)xl+=`<text x="${x(i)}" y="${Hh-6}" fill="#6f8a84" font-size="10.5" text-anchor="${i===0?'start':'middle'}">${nice(p.date)}</text>`})}
   const id='g'+uid(),buf=o.buffer;
-  const marks=(o.marks||[]).map(m=>{const i=pts.findIndex(p=>p.date===m.date);return i<0?'':`<circle cx="${x(i)}" cy="${y(pts[i].y)}" r="${o.mini?3:4}" fill="${m.c}" stroke="#0d0f15" stroke-width="2"/>`}).join('');
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${Hh}" height="${Hh}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#e9c784" stop-opacity=".3"/><stop offset="1" stop-color="#e9c784" stop-opacity="0"/></linearGradient><clipPath id="c${id}"><rect x="0" y="${y(buf??-1e9)}" width="${W}" height="${Hh}"/></clipPath></defs>${grid}
-   ${buf!=null?`<rect x="${P.l}" y="${y(buf)}" width="${W-P.l-P.r}" height="${Math.max(0,Hh-P.b-y(buf))}" fill="rgba(255,107,107,.06)"/><line x1="${P.l}" x2="${W-P.r}" y1="${y(buf)}" y2="${y(buf)}" stroke="#ff6b6b" stroke-dasharray="4 5" stroke-opacity=".6"/>`:''}
-   <path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="#e9c784" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${buf!=null?`<path d="${line}" fill="none" stroke="#ff6b6b" stroke-width="2.6" clip-path="url(#c${id})"/>`:''}
-   ${marks}${xl}<line class="hx" y1="${P.t}" y2="${Hh-P.b}" stroke="rgba(255,255,255,.3)" opacity="0"/><circle class="hc" r="5.5" fill="#e9c784" stroke="#0d0f15" stroke-width="2.5" opacity="0"/></svg><div class="ctip"></div>`;
+  const marks=(o.marks||[]).map(m=>{const i=pts.findIndex(p=>p.date===m.date);return i<0?'':`<circle cx="${x(i)}" cy="${y(pts[i].y)}" r="${o.mini?3:4}" fill="${m.c}" stroke="#102027" stroke-width="2"/>`}).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${Hh}" height="${Hh}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9bf8c" stop-opacity=".3"/><stop offset="1" stop-color="#d9bf8c" stop-opacity="0"/></linearGradient><clipPath id="c${id}"><rect x="0" y="${y(buf??-1e9)}" width="${W}" height="${Hh}"/></clipPath></defs>${grid}
+   ${buf!=null?`<rect x="${P.l}" y="${y(buf)}" width="${W-P.l-P.r}" height="${Math.max(0,Hh-P.b-y(buf))}" fill="rgba(240,144,127,.07)"/><line x1="${P.l}" x2="${W-P.r}" y1="${y(buf)}" y2="${y(buf)}" stroke="#f0907f" stroke-dasharray="4 5" stroke-opacity=".6"/>`:''}
+   <path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="#d9bf8c" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${buf!=null?`<path d="${line}" fill="none" stroke="#f0907f" stroke-width="2.6" clip-path="url(#c${id})"/>`:''}
+   ${marks}${xl}<line class="hx" y1="${P.t}" y2="${Hh-P.b}" stroke="rgba(255,255,255,.3)" opacity="0"/><circle class="hc" r="5.5" fill="#d9bf8c" stroke="#102027" stroke-width="2.5" opacity="0"/></svg><div class="ctip"></div>`;
   if(o.mini)return;
   const svg=el.querySelector('svg'),hx=svg.querySelector('.hx'),hc=svg.querySelector('.hc'),tp=el.querySelector('.ctip');
   const mv=e=>{const r=svg.getBoundingClientRect();const px=(e.clientX-r.left)*W/r.width;const i=clamp(Math.round((px-P.l)/((W-P.l-P.r)/(pts.length-1))),0,pts.length-1),p=pts[i];
@@ -430,11 +430,11 @@ function stackChart(el,labels,series,o={}){
   if(!el)return;const W=el.clientWidth||600,Hh=o.h||230,P={l:46,r:6,t:10,b:26};
   const tot=labels.map((_,i)=>series.reduce((s,se)=>s+Math.max(0,se.values[i]||0),0));const mx=Math.max(...tot,...(o.lines||[]).flatMap(l=>l.values))*1.1||1;
   const bw=(W-P.l-P.r)/labels.length,y=v=>P.t+(mx-v)*(Hh-P.t-P.b)/mx;
-  let g='';for(let i=0;i<=4;i++){const v=mx*i/4;g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,.05)"/><text x="${P.l-8}" y="${y(v)+4}" fill="#6b7486" font-size="10.5" text-anchor="end">${v>=1000?'$'+(v/1000).toFixed(1)+'k':fmt(v)}</text>`}
+  let g='';for(let i=0;i<=4;i++){const v=mx*i/4;g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(255,255,255,.05)"/><text x="${P.l-8}" y="${y(v)+4}" fill="#6f8a84" font-size="10.5" text-anchor="end">${v>=1000?'$'+(v/1000).toFixed(1)+'k':fmt(v)}</text>`}
   let bars='';labels.forEach((lb,i)=>{let acc=0;const x0=P.l+i*bw+bw*.18,w=bw*.64;
     series.forEach((se,j)=>{const v=Math.max(0,se.values[i]||0);if(!v)return;const y1=y(acc+v),y0=y(acc);bars+=`<rect x="${x0}" y="${y1}" width="${w}" height="${Math.max(0,y0-y1-1.5)}" rx="3" fill="${se.color}"/>`;acc+=v});
-    bars+=`<text x="${x0+w/2}" y="${Hh-7}" fill="#6b7486" font-size="10.5" text-anchor="middle">${lb}</text><rect class="hit" data-i="${i}" x="${P.l+i*bw}" y="0" width="${bw}" height="${Hh}" fill="transparent"/>`});
-  const lines=(o.lines||[]).map(L=>`<path d="${L.values.map((v,i)=>(i?'L':'M')+(P.l+i*bw+bw/2)+' '+y(v)).join(' ')}" fill="none" stroke="${L.color}" stroke-width="2.2"/>`+L.values.map((v,i)=>`<circle cx="${P.l+i*bw+bw/2}" cy="${y(v)}" r="3.5" fill="${L.color}" stroke="#0d0f15" stroke-width="1.5"/>`).join('')).join('');
+    bars+=`<text x="${x0+w/2}" y="${Hh-7}" fill="#6f8a84" font-size="10.5" text-anchor="middle">${lb}</text><rect class="hit" data-i="${i}" x="${P.l+i*bw}" y="0" width="${bw}" height="${Hh}" fill="transparent"/>`});
+  const lines=(o.lines||[]).map(L=>`<path d="${L.values.map((v,i)=>(i?'L':'M')+(P.l+i*bw+bw/2)+' '+y(v)).join(' ')}" fill="none" stroke="${L.color}" stroke-width="2.2"/>`+L.values.map((v,i)=>`<circle cx="${P.l+i*bw+bw/2}" cy="${y(v)}" r="3.5" fill="${L.color}" stroke="#102027" stroke-width="1.5"/>`).join('')).join('');
   el.innerHTML=`<svg viewBox="0 0 ${W} ${Hh}" height="${Hh}">${g}${bars}${lines}</svg><div class="ctip"></div>`;
   const tp=el.querySelector('.ctip'),svg=el.querySelector('svg');
   el.querySelectorAll('.hit').forEach(r=>{const show=e=>{const i=+r.dataset.i,rc=svg.getBoundingClientRect();tp.innerHTML=`<b>${labels[i]}</b><br>`+series.filter(se=>se.values[i]).map(se=>`<span style="color:${se.color}">●</span> ${se.name} ${fmt(se.values[i])}`).join('<br>')+`<br><b>Spent ${fmt(tot[i])}</b>`+(o.lines||[]).map(L=>`<br><span style="color:${L.color}">●</span> ${L.name} ${fmt(L.values[i])}`).join('');tp.style.opacity=1;const tw=tp.offsetWidth,cx=(P.l+i*bw+bw/2)*rc.width/W;tp.style.left=clamp(cx-tw/2,0,rc.width-tw)+'px';tp.style.top='-8px';tp.style.transform='translateY(-100%)'};
@@ -445,7 +445,7 @@ function donut(parts,center,sub,size=200){
   parts.forEach(p=>{const da=p.value/tot*Math.PI*2;if(da<=.001)return;const a2=a+da,lg=da>Math.PI?1:0,g=.015;
     const Q=(rad,an)=>[100+rad*Math.cos(an),100+rad*Math.sin(an)];const[a1x,a1y]=Q(R,a+g),[a2x,a2y]=Q(R,a2-g),[b1x,b1y]=Q(r,a2-g),[b2x,b2y]=Q(r,a+g);
     paths+=`<path d="M${a1x} ${a1y}A${R} ${R} 0 ${lg} 1 ${a2x} ${a2y}L${b1x} ${b1y}A${r} ${r} 0 ${lg} 0 ${b2x} ${b2y}Z" fill="${p.color}"><title>${esc(p.name)} ${fmt(p.value)}</title></path>`;a=a2});
-  return `<svg viewBox="0 0 200 200" style="width:100%;max-width:${size}px;display:block;margin:auto">${paths}<text x="100" y="100" text-anchor="middle" fill="#f2f4f8" font-family="Instrument Serif" font-size="32">${center}</text><text x="100" y="121" text-anchor="middle" fill="#6b7486" font-size="11">${sub||''}</text></svg>`;
+  return `<svg viewBox="0 0 200 200" style="width:100%;max-width:${size}px;display:block;margin:auto">${paths}<text x="100" y="100" text-anchor="middle" fill="#e8efec" font-family="Instrument Serif" font-size="32">${center}</text><text x="100" y="121" text-anchor="middle" fill="#6f8a84" font-size="11">${sub||''}</text></svg>`;
 }
 function ringSvg(frac,color,size=168,stroke=10){const R=(100-stroke)/2-2,C=2*Math.PI*R;return `<svg viewBox="0 0 100 100" style="transform:rotate(-90deg)"><circle cx="50" cy="50" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="${stroke*.6}"/><circle class="arc" cx="50" cy="50" r="${R}" fill="none" stroke-linecap="round" stroke="${color}" stroke-width="${stroke*.6}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-clamp(frac,0,1))}"/></svg>`}
 const legend=items=>`<div class="legend">${items.map(([n,c])=>`<span><i style="background:${c}"></i>${n}</span>`).join('')}</div>`;
@@ -457,41 +457,76 @@ function evRow(e,showDate=true){
 }
 
 function vHome(){
-  const s=safeToSpend(),al=allowance(),t=today(),f=forecast(35),ta=todayAllow();
-  const prevPay=events(addDays(t,-20),t).filter(e=>e.kind==='income'&&e.r.id.startsWith('pay')).at(-1);
-  const cyc=s.np&&prevPay?diffDays(prevPay.date,s.np.date):15,frac=1-s.days/cyc;
-  const col={green:'var(--green)',amber:'var(--amber)',red:'var(--red)'}[s.status];
-  const up=events(addDays(t,1),addDays(t,10)).slice(0,5);
-  AFTER=()=>lineChart($('#mf'),f.pts,{buffer:s.buf,h:120,mini:true,marks:f.evs.filter(e=>e.kind==='income'&&e.r?.id.startsWith('pay')).map(e=>({date:e.date,c:'#45d6a0'}))});
-  const alert=s.status==='red'?`<div class="alert">${icon('alert')}<div><b>You're in the red zone</b><p>${s.total<0?`After bills due before payday and your ${fmt(s.buf)} buffer, you're ${fmt(-s.total)} short. Essentials only until ${nice(s.np?.date||t)}.`:`Your balance is projected to dip to ${fmt(s.min)} on ${nice(s.minPt.date)}. Hold off on wants.`}</p></div></div>`:'';
+  const t=today(),ta=todayAllow(),s=ta.s,f=forecast(35),cu=comingUp(14),ins=insights();
   const ls=S.bank&&S.bank.lastSync,stale=ls&&diffDays(ls.date,t)>=8;
-  const setb=stale?`<div class="alert ag">${icon('refresh')}<div><b>Time for your weekly bank sync</b><p>Last synced ${nice(ls.date,{dow:1})}. Ask Claude to sync your Scotiabank accounts, or tap Update to type today's balances.</p></div></div>`:S.balance.assumed?`<div class="alert ag" data-act="balance">${icon('refresh')}<div><b>Add today's balances</b><p>Nest is using your last statements (Aug 31 / Oct 25). Tap to enter what your bank app shows now.</p></div></div>`:'';
-  const ins=insights();
+  const st={green:'ok',amber:'care',red:'stop'}[s.status];
+  const pct=ta.allowed>0?clamp(ta.spent/ta.allowed*100,0,100):(ta.spent>0?100:0);
+  const why=s.total<0?`Extras are paused until ${s.np?nice(s.np.date,{dow:1}):'payday'}. After rent, bills and what's owed on the Visa, you're ${fmt(-s.total)} under your ${fmt(s.buf)} safety buffer.`
+    :ta.left<0?`You're ${fmt(-ta.left)} over for today. Tomorrow's number shrinks a little to make up for it.`
+    :ta.byCash?`Cash decides today: ${fmt(ta.cashStart)} is free across the ${ta.days} day${ta.days>1?'s':''} until payday.`
+    :`Your fun budget has ${fmt(ta.remStart)} left for the ${ta.mleft} day${ta.mleft>1?'s':''} remaining this month. Rent, bills, savings and groceries are already set aside.`;
   const logs=S.logs.filter(l=>!l.future).slice(-4).reverse();
-  return `${setb}
-  <div class="card today ${s.status}">
-    <div class="t-top"><span class="eyebrow">${nice(t,{dow:1})}</span>${pill(s)}</div>
-    <div class="t-main">
-      <div class="t-ring">${ringSvg(ta.allowed>0?Math.max(0,ta.left)/ta.allowed:0,ta.left<0?'var(--red)':col,200,9)}<div class="rc"><div class="t-lbl">Left to spend today</div><div class="t-num num ${ta.left<0?'neg':''}"><span data-count="${Math.abs(ta.left)}" data-pre="${ta.left<0?'−$':'$'}">${ta.left<0?'−':''}${fmt(Math.abs(ta.left))}</span></div><div class="t-sub">${ta.spent>0?`${fmt(ta.spent)} spent of ${fmt(ta.allowed)}`:`of ${fmt(ta.allowed)} today`}</div></div></div>
-      <div class="t-side">
-        <p class="t-why">${s.total<0?`Extras are paused until ${s.np?nice(s.np.date,{dow:1}):'payday'}: after rent, bills and what you owe on the Visa, you're ${fmt(-s.total)} under your ${fmt(s.buf)} safety buffer.${ta.spent>0?` Today's ${fmt(ta.spent)} comes out of that.`:''}`:ta.left<0?`You're ${fmt(-ta.left)} over today. Tomorrow's number shrinks a little to make up for it.`:ta.allowed<1?`Nothing to spend on extras until ${s.np?nice(s.np.date,{dow:1}):'payday'}. Bills and groceries are covered.`:ta.byCash?`Held back by cash: ${fmt(ta.cashStart)} free across ${ta.days} day${ta.days>1?'s':''} until payday.`:`Your fun budget has ${fmt(ta.remStart)} left for ${ta.mleft} day${ta.mleft>1?'s':''} this month.`}${s.total>=0?' Rent, bills, savings and groceries are already set aside.':''}</p>
-        <div class="t-chips"><div><span>This week</span><b class="num">${fmt(ta.week)}</b></div><div><span>Payday</span><b>${s.np?(s.days===1?'Tomorrow':s.days+' days'):'—'}</b></div><div><span>Net cash</span><b class="num">${fmt(s.net)}</b></div></div>
-        <div class="t-act"><button class="btn gold" data-act="add">${icon('plus')} Log a spend</button><button class="btn ghost" data-act="balance">${icon('refresh')} Update</button></div>
-      </div>
-    </div>
-    <div class="t-needs">${ta.needs.filter(n=>n.amt>0).map(n=>`<div><div class="between"><span>${esc(n.name.split(' &')[0])}</span><b class="num">${fmt(Math.max(0,n.amt-n.used))} <i>left</i></b></div>${bar(n.used,n.amt,n.used>n.amt?'var(--red)':'var(--blue)')}</div>`).join('')}</div>
-    <div class="t-sync">${syncLine()}</div>
+  AFTER=()=>lineChart($('#mf'),f.pts,{buffer:s.buf,h:130,mini:true,marks:f.evs.filter(e=>e.kind==='income'&&e.r?.id.startsWith('pay')).map(e=>({date:e.date,c:'#9ed9c3'}))});
+  return `${stale?`<button class="notice" data-act="balance">${icon('refresh')}<span><b>Weekly sync is due.</b> Last synced ${nice(ls.date,{dow:1})}. Ask Claude to sync Scotiabank, or tap to enter balances.</span></button>`:''}
+  <section class="td ${st}">
+        <div class="td-fig num"><span data-count="${Math.abs(ta.left)}" data-pre="${ta.left<0?'−$':'$'}">${ta.left<0?'−':''}${fmt(Math.abs(ta.left))}</span></div>
+    <div class="td-cap">left to spend today${ta.allowed>0?` <span>of ${fmt(ta.allowed)}</span>`:''}</div>
+    <div class="td-meter" role="img" aria-label="${fmt(ta.spent)} spent today"><i style="width:${pct}%"></i></div>
+    <p class="td-why">${why}</p>
+    <dl class="td-facts">
+      <div><dt>This week</dt><dd class="num">${fmt(ta.week)}</dd></div>
+      <div><dt>Next payday</dt><dd>${s.np?nice(s.np.date,{dow:1}):'Not set'}</dd></div>
+      <div><dt>Net cash</dt><dd class="num ${s.net<0?'neg':''}">${fmt(s.net)}</dd></div>
+      <div><dt>Status</dt><dd><span class="st ${st}">${{ok:'On track',care:'Careful',stop:'Hold off'}[st]}</span></dd></div>
+    </dl>
+    <div class="td-act"><button class="btn gold" data-act="add">${icon('plus')} Log a spend</button><button class="btn ghost" data-act="balance">Update balances</button></div>
+    <div class="td-sync">${syncLine()}</div>
+  </section>
+  <div class="home2">
+    <section class="panel">
+      <header><h2>Coming up</h2><span>${ls?'From your synced accounts':'From your bills and paydays'}, next 14 days</span></header>
+      <div class="ledger">${cu.rows.length?cu.rows.map(ledgerRow).join(''):'<div class="empty">Nothing due in the next two weeks.</div>'}</div>
+      <footer><span>Balance after these</span><b class="num ${cu.end<0?'neg':''}">${fmt(cu.end)}</b></footer>
+    </section>
+    <section class="panel">
+      <header><h2>This month</h2><span>${ymLabel(ym(t))}, ${ta.mleft} days left</span></header>
+      <div class="envs">${monthRows(ta)}</div>
+      <button class="link" data-go="plan" data-seg="budget">Adjust budget</button>
+    </section>
   </div>
-  <div class="sp"></div>
-  <div class="grid gh">
-    ${card('Fun money this month','spark',`<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">${[['Today',al.perDay],['This week',al.perWeek],['Month left',al.rem]].map(([l,v])=>`<div class="stat"><div class="l">${l}</div><div class="v num">${fmt(v)}</div></div>`).join('')}</div><div class="sp"></div>${bar(al.used,al.budget,al.used>al.budget?'var(--red)':'var(--gold)')}<div class="between note" style="margin-top:9px"><span>${fmt(al.used)} of ${fmt(al.budget)} used</span><span>${al.left} days left</span></div>${al.capped?`<div class="note warn" style="margin-top:6px">Held back by cash until payday, not by budget.</div>`:''}`,ymLabel(ym(t)))}
-    <div class="card tap" data-go="plan" data-seg="flow"><div class="ch">${icon('flow')}<h3>Next 5 weeks</h3><span class="r">Cash flow ${icon('right')}</span></div><div class="chart" id="mf"></div><div class="note" style="margin-top:10px">${s.firstRed?`<span class="neg">Dips below your ${fmt(s.buf)} buffer on ${nice(s.firstRed.date)}.</span> `:'<span class="pos">Stays above your buffer.</span> '}Low point ${fmt(s.min)} on ${nice(s.minPt.date)}.</div></div>
+  <div class="home2">
+    <section class="panel tap" data-go="plan" data-seg="flow">
+      <header><h2>Next five weeks</h2><span>${s.firstRed?`Dips below your buffer on ${nice(s.firstRed.date)}`:'Stays above your buffer'}</span></header>
+      <div class="chart" id="mf"></div>
+      <footer><span>Lowest point</span><b class="num ${s.min<0?'neg':''}">${fmt(s.min)} <i>on ${nice(s.minPt.date)}</i></b></footer>
+    </section>
+    <section class="panel">
+      <header><h2>Worth knowing</h2><span>From your statements</span></header>
+      <div class="notes">${ins.slice(0,3).map(x=>`<div><b>${x.t}</b><p>${x.p}</p></div>`).join('')}</div>
+      <button class="link" data-go="insights" data-seg="habits">All insights</button>
+    </section>
   </div>
-  <div class="sp"></div>
-  ${card('Coming up','calendar',`<div class="list">${up.length?up.map(e=>evRow(e)).join(''):'<div class="empty">Nothing in the next 10 days</div>'}</div><button class="more" data-go="plan" data-seg="flow">Full cash flow ${icon('right')}</button>`,'next 10 days')}
-  <div class="sp"></div>
-  ${card('What your statements say','spark',`<div class="hscroll">${ins.slice(0,5).map(insCard).join('')}</div>`,`<button class="goldt" data-go="insights" data-seg="habits" style="font-size:12.5px;font-weight:600">See all</button>`)}
-  ${logs.length?`<div class="sp"></div>${card('Your recent logs','tx',`<div class="list">${logs.map(logRow).join('')}</div>`,`${S.logs.length} total`)}`:''}`;
+  ${logs.length?`<section class="panel"><header><h2>Your recent logs</h2><span>${S.logs.length} in total</span></header><div class="list">${logs.map(logRow).join('')}</div></section>`:''}`;
+}
+function comingUp(days){
+  const t=today(),s=safeToSpend();let bal=s.net;const rows=[];
+  // net cash already has pending bills taken off, so show them first with their effect already applied
+  for(const p of (S.bank&&S.bank.pending)||[])rows.push({date:null,name:p.name,sub:'Due, not posted yet',amount:p.amount,bal:null,kind:'pend'});
+  for(const e of events(addDays(t,1),addDays(t,days))){bal+=e.amount;rows.push({date:e.date,name:e.save?'Move to savings':e.name,sub:e.kind==='income'?'Payday':e.save?'Your savings plan':e.r&&e.r.acct==='visa'?'Charged to Visa':e.kind==='planned'?'Planned':({need:'Bill',debt:'Debt payment',want:'Subscription',business:'Business',fee:'Bank fee'})[e.group]||'Bill',amount:e.amount,bal,kind:e.kind==='income'?'in':e.save?'save':'out'})}
+  const v=S.debts.find(d=>d.id==='visa');if(v&&v.due&&v.due>t&&v.due<=addDays(t,days)){const st=S.bank?.lastSync?.accounts?.visa??v.balance;rows.push({date:v.due,name:'Visa statement due',sub:'Already set aside in net cash',amount:-st,bal:null,kind:'info'})}
+  rows.sort((a,b)=>(a.date||'')<(b.date||'')?-1:(a.date||'')>(b.date||'')?1:0);
+  return {rows,end:bal};
+}
+function ledgerRow(r){
+  const d=r.date?pd(r.date):null;
+  return `<div class="lg k-${r.kind}"><div class="lg-d">${d?`<b>${d.getDate()}</b><span>${MONTHS[d.getMonth()].slice(0,3)}</span>`:'<b>•</b><span>Now</span>'}</div><div class="lg-t"><b>${esc(r.name.replace(/ — .*/,'').replace(/\s*\(.*\)/,''))}</b><span>${r.sub}</span></div><div class="lg-a num ${r.amount>0?'pos':''}">${r.amount>0?'+':''}${fmtc(r.amount)}</div><div class="lg-b num ${r.bal!=null&&r.bal<0?'neg':''}">${r.bal!=null?fmt(r.bal):''}</div></div>`;
+}
+function monthRows(ta){
+  const m=mode(today()),ms=monthSpend(ym(today())),bs=budgetsFor(m).filter(b=>!b.sinking&&b.amt>0);
+  const row=(n,used,amt)=>{const over=used>amt;return `<div class="env-r"><div class="between"><span>${esc(n)}</span><b class="num ${over?'neg':''}">${over?fmt(used-amt)+' over':fmt(amt-used)+' left'}</b></div><div class="thin"><i style="width:${clamp(used/(amt||1)*100,0,100)}%" class="${over?'over':''}"></i></div></div>`};
+  const needs=bs.filter(b=>b.group==='need'),wants=bs.filter(b=>b.group==='want');
+  const wU=wants.reduce((s,b)=>s+(ms[b.id]||0),0),wA=wants.reduce((s,b)=>s+b.amt,0);
+  return needs.map(b=>row(b.name.replace(/ & .*/,''),ms[b.id]||0,b.amt)).join('')+row('Fun money',wU,wA);
 }
 function logRow(l){const b=S.budgets.find(x=>x.id===l.cat),inc=l.amount>0;return `<button class="li" onclick="sheetLog('${l.id}')"><div class="ic" style="${tint(inc?'var(--green)':'var(--gold)')}">${icon(inc?'cash':ENV_ICON[l.cat]||'card')}</div><div class="t"><b>${esc(l.note||b?.name||'Expense')}</b><span>${nice(l.date,{dow:1})} · ${esc(b?.name||(inc?'Income':'Other'))}</span></div><div class="a num ${inc?'pos':''}">${inc?'+':''}${fmtc(l.amount)}</div></button>`}
 function insights(){
@@ -515,7 +550,7 @@ function vBudget(){
   const env=g=>bs.filter(b=>b.group===g).map(b=>{const sp=spent[b.id]||0,over=sp>b.amt,ha=b.cats.reduce((s,c)=>s+(h.byCat[c]||0),0)/h.N;
     return `<button class="env" onclick="sheetEnv('${b.id}')"><div class="top"><div class="ic" style="${tint(GROUP[g].c)}">${icon(ENV_ICON[b.id])}</div><div style="min-width:0"><div class="nm">${esc(b.name)}</div><div class="meta">${ha>b.amt*1.1?`<span class="warn">usually ${fmt(ha)}</span>`:`usually ${fmt(ha)}`}</div></div><div class="amt"><b class="${over?'neg':''}">${fmt(sp)}</b> <span class="dim">/ ${fmt(b.amt)}</span></div></div>${bar(sp,b.amt,over?'var(--red)':sp>b.amt*pace*1.15?'var(--amber)':GROUP[g].c,b.amt*pace)}</button>`}).join('');
   const tot=p.inc||1,rows=[['Needs',(p.groups.need||0),.5,'var(--need)'],['Wants',(p.groups.want||0)+(p.groups.business||0),.3,'var(--want)'],['Debt, fees & savings',(p.groups.debt||0)+(p.groups.fee||0)+p.sav+Math.max(0,p.margin),.2,'var(--save)']];
-  const parts=[['Needs',p.groups.need,'#71a9ff'],['Wants',p.groups.want,'#e9c784'],['Business',p.groups.business,'#a493ff'],['Debt',p.groups.debt,'#ff8f7f'],['Fees',p.groups.fee,'#8a93a6'],['Savings',p.sav,'#45d6a0'],['Room',Math.max(0,p.margin),'#2a303c']].map(([n,v,c])=>({name:n,value:v||0,color:c}));
+  const parts=[['Needs',p.groups.need,'#8fb7d9'],['Wants',p.groups.want,'#d9bf8c'],['Business',p.groups.business,'#b6a7d9'],['Debt',p.groups.debt,'#f0907f'],['Fees',p.groups.fee,'#7f9590'],['Savings',p.sav,'#9ed9c3'],['Room',Math.max(0,p.margin),'#22393f']].map(([n,v,c])=>({name:n,value:v||0,color:c}));
   return `<div class="between" style="margin-bottom:16px;flex-wrap:wrap;gap:10px"><div class="mini-seg"><button class="${m==='solo'?'on':''}" onclick="BMODE='solo';render()">Just me</button><button class="${m==='couple'?'on':''}" onclick="BMODE='couple';render()">With my wife</button></div><span class="note">${ymLabel(ym(t))} · tap any envelope to edit</span></div>
   <div class="grid gh">
    <div class="card"><div class="ch">${icon('budget')}<h3>Monthly plan</h3><span class="r">${m==='couple'?'couple':'solo'}</span></div>
@@ -564,7 +599,7 @@ let FD=60,FV='list',CALM=null,FLN=10;
 function vFlow(){
   const s=safeToSpend(),f=forecast(FD),t=today(),groups={};for(const e of f.evs)(groups[e.date]=groups[e.date]||[]).push(e);
   const inS=f.evs.filter(e=>e.amount>0).reduce((a,e)=>a+e.amount,0),outS=-f.evs.filter(e=>e.amount<0).reduce((a,e)=>a+e.amount,0),burn=f.pts.slice(1).reduce((a,p)=>a+dailyBurn(p.date),0),end=f.pts.at(-1);
-  AFTER=()=>lineChart($('#fc'),f.pts,{buffer:s.buf,h:innerWidth<820?200:260,marks:f.evs.filter(e=>e.kind==='income').map(e=>({date:e.date,c:'#45d6a0'})),extra:p=>{const g=groups[p.date];return g?'<br>'+g.slice(0,4).map(e=>`${e.amount>0?'+':''}${fmt(e.amount)} ${esc(e.name.split(' — ')[0])}`).join('<br>'):''}});
+  AFTER=()=>lineChart($('#fc'),f.pts,{buffer:s.buf,h:innerWidth<820?200:260,marks:f.evs.filter(e=>e.kind==='income').map(e=>({date:e.date,c:'#9ed9c3'})),extra:p=>{const g=groups[p.date];return g?'<br>'+g.slice(0,4).map(e=>`${e.amount>0?'+':''}${fmt(e.amount)} ${esc(e.name.split(' — ')[0])}`).join('<br>'):''}});
   const days=Object.keys(groups).sort();
   const list=days.slice(0,FLN).map(d=>{const bal=f.pts.find(p=>p.date===d)?.y;return `<div class="dh"><span>${nice(d,{dow:1})}</span><span class="${bal<s.buf?'neg':''}">≈ ${fmt(bal)}</span></div>`+groups[d].map(e=>evRow(e,false)).join('')}).join('');
   return `<div class="between" style="margin-bottom:16px;flex-wrap:wrap;gap:10px"><div class="mini-seg">${[30,60,90].map(d=>`<button class="${FD===d?'on':''}" onclick="FD=${d};render()">${d} days</button>`).join('')}</div><div class="mini-seg"><button class="${FV==='list'?'on':''}" onclick="FV='list';render()">List</button><button class="${FV==='cal'?'on':''}" onclick="FV='cal';render()">Calendar</button></div></div>
@@ -587,16 +622,16 @@ function vOverview(){
   const h=hist(),N=h.N,months=h.months,L=months.map(k=>MONTHS[+k.slice(5)-1]);
   const avgSpend=Object.values(h.byGroup).reduce((a,b)=>a+b,0)/N,avgInc=Object.values(h.income).reduce((a,b)=>a+b,0)/N,avgSal=Object.values(h.salary).reduce((a,b)=>a+b,0)/N,left=avgInc-avgSpend-6951.84/N;
   const cats=window._cats=Object.entries(h.byCat).sort((a,b)=>b[1]-a[1]),maxC=cats[0][1]/N,trip=-h.spend.filter(t=>t.travel&&ym(t.date)==='2026-05').reduce((s,t)=>s+t.amount,0);
-  const GC={need:'#71a9ff',want:'#e9c784',debt:'#ff8f7f',business:'#a493ff',fee:'#8a93a6'};
-  AFTER=()=>stackChart($('#sc'),L,Object.keys(GC).map(g=>({name:GROUP[g].n,color:GC[g],values:months.map(k=>h.byMonth[k]?.[g]||0)})),{h:innerWidth<820?210:250,lines:[{name:'Take-home',color:'#45d6a0',values:months.map(k=>h.salary[k]||0)}]});
+  const GC={need:'#8fb7d9',want:'#d9bf8c',debt:'#f0907f',business:'#b6a7d9',fee:'#7f9590'};
+  AFTER=()=>stackChart($('#sc'),L,Object.keys(GC).map(g=>({name:GROUP[g].n,color:GC[g],values:months.map(k=>h.byMonth[k]?.[g]||0)})),{h:innerWidth<820?210:250,lines:[{name:'Take-home',color:'#9ed9c3',values:months.map(k=>h.salary[k]||0)}]});
   return `<div class="grid g4">${stat('Avg take-home',fmt(avgSal),'per month','pos')}${stat('Avg spending',fmt(avgSpend),'per month')}${stat('Eating out',fmt(h.eatOut/N),pct(h.eatOut/N/avgSal)+' of pay','neg')}${stat('Left over',fmt(left),'per month, before tax refund',left<0?'neg':'pos')}</div>
   <div class="sp"></div>
-  <div class="grid gh">${card('Spending vs. pay','insights',`<div class="chart" id="sc"></div>${legend(Object.keys(GC).map(g=>[GROUP[g].n,GC[g]]).concat([['Take-home','#45d6a0']]))}<div class="note" style="margin-top:10px">May's spike is the Morocco & Türkiye trip (${fmt(trip)}). Most other months spent about everything that came in.</div>`,'tap a month')}
+  <div class="grid gh">${card('Spending vs. pay','insights',`<div class="chart" id="sc"></div>${legend(Object.keys(GC).map(g=>[GROUP[g].n,GC[g]]).concat([['Take-home','#9ed9c3']]))}<div class="note" style="margin-top:10px">May's spike is the Morocco & Türkiye trip (${fmt(trip)}). Most other months spent about everything that came in.</div>`,'tap a month')}
    ${card('Where it goes','budget',`${donut(Object.entries(h.byGroup).map(([g,v])=>({name:GROUP[g].n,value:v,color:GC[g]})),fmt(avgSpend),'per month',180)}<div class="sp"></div>${Object.entries(h.byGroup).sort((a,b)=>b[1]-a[1]).map(([g,v])=>`<div class="kv"><span><span style="color:${GC[g]}">●</span> ${GROUP[g].n}</span><b class="num">${fmt(v/N)}<span class="dim" style="font-weight:400">/mo</span></b></div>`).join('')}`)}</div>
   <div class="sp"></div>
   ${card('By category','tx',`<div id="catlist">${catRows(cats.slice(0,8),maxC,N)}</div>${cats.length>8?`<button class="more" onclick="this.remove();$('#catlist').innerHTML=catRows(window._cats,${maxC},${N})">Show all ${cats.length} ${icon('chev')}</button>`:''}`,'monthly average')}`;
 }
-const CATC=['#e9c784','#71a9ff','#45d6a0','#a493ff','#ff8fb8','#4fd1d1','#ffb44d','#ff8f7f','#b6e36f','#8a93a6','#d98cff','#62cfff','#ffd36a','#7fa1c9'];
+const CATC=['#d9bf8c','#8fb7d9','#9ed9c3','#b6a7d9','#e0a3b8','#86cfc4','#e8b86a','#f0907f','#b9d39a','#7f9590','#c4a6dd','#8cc6dd','#e3cf8e','#7fa1c9'];
 window.catRows=(cats,maxC,N)=>cats.map(([c,v],i)=>`<div style="padding:9px 0"><div class="between" style="margin-bottom:6px;font-size:14px"><span>${esc(c)}</span><b class="num">${fmt(v/N)}</b></div>${bar(v/N,maxC,CATC[i%CATC.length])}</div>`).join('');
 
 function vHabits(){
@@ -825,7 +860,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
 function syncLine(){const ls=S.bank&&S.bank.lastSync,p=(S.bank&&S.bank.pending)||[];
   if(!ls)return `<span class="dim">Balances entered by hand ${S.balance.asOf?'· '+nice(S.balance.asOf):''}</span>`;
   const when=new Date(ls.ts).toLocaleString('en-CA',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-  return `<span>${icon('check')} Scotiabank synced ${when}</span>${p.length?`<span class="dim">· holding ${p.map(x=>esc(x.name.split(' —')[0])+' '+fmt(-x.amount)).join(', ')} not yet posted</span>`:''}`}
+  return `<span>${icon('check')} Scotiabank synced ${when}</span>${p.length?`<span class="dim">Holding ${p.map(x=>esc(x.name.split(' —')[0])+' '+fmt(-x.amount)).join(', ')} not yet posted</span>`:''}`}
 
 /* ---------- Cloud sync: Firebase (Google sign-in + Firestore), ciphertext only ---------- */
 const FB_CFG={apiKey:"AIzaSyAHPbr8HPUim5JSZReiPRr5nKHgL_T-OlA",authDomain:"nest-household-f73fa.firebaseapp.com",projectId:"nest-household-f73fa",storageBucket:"nest-household-f73fa.firebasestorage.app",messagingSenderId:"530627324315",appId:"1:530627324315:web:8208e8876855ea84c4993e"};
