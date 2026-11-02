@@ -121,6 +121,7 @@ async function boot(key){
   // forward-compat: add any new recurring items from base
   for(const r of BASE.recurring) if(!S.recurring.find(x=>x.id===r.id)) S.recurring.push(JSON.parse(JSON.stringify(r)));
   S.settings={...BASE.settings,...S.settings};
+  migrate();
   onBoot();
   if(typeof cloudStart==='function')cloudStart();
 }
@@ -128,7 +129,7 @@ async function boot(key){
 
 const mode=(date)=>{const s=S.settings;if(s.planMode==='solo')return 'solo';if(s.planMode==='couple')return 'couple';return (s.wifeArrival&&date>=s.wifeArrival)?'couple':'solo'};
 const isCoupleDate=d=>mode(d)==='couple';
-function recActive(r,date){ if(!r.active) return false; if(r.couple && !isCoupleDate(date)) return false; if(r.end && date>r.end) return false; return true; }
+function recActive(r,date){ if(!r.active) return false; if(r.start && date<r.start) return false; if(r.couple && !isCoupleDate(date)) return false; if(r.end && date>r.end) return false; return true; }
 function occurrences(r,from,to){ // inclusive from..to
   const out=[]; let d=pd(from); d.setDate(1);
   const end=pd(to);
@@ -232,6 +233,27 @@ function hist(){
 }
 
 
+
+/* ---------- debt payoff ---------- */
+function amort(bal,apr,pay){ // months & interest to clear a balance at a fixed monthly payment
+  let b=+bal||0,m=0,int=0;const r=(+apr||0)/1200;if(b<=0)return{months:0,interest:0};if(pay<=b*r)return{months:Infinity,interest:Infinity};
+  while(b>0.5&&m<600){const i=b*r;int+=i;b=b+i-pay;m++}return{months:m,interest:int};
+}
+function migrate(){
+  S.mig=S.mig||{};
+  if(!S.mig.affirm2){
+    const a=S.recurring.find(r=>r.id==='affirm');if(a){a.active=false;a.end='2026-11-30'}
+    const base={kind:'debt',group:'debt',acct:'chq',freq:'monthly',active:true,category:'Debt'};
+    if(!S.recurring.find(r=>r.id==='aff_struct'))S.recurring.push({...base,id:'aff_struct',name:'Affirm · Structube',amount:186.60,day:1,start:'2026-12-01',end:'2028-11-30',note:'24 payments at 24.97% APR (loan 8UMX-RY91). Pay extra in the Affirm app to finish early.'});
+    if(!S.recurring.find(r=>r.id==='aff_silk'))S.recurring.push({...base,id:'aff_silk',name:'Affirm · Silk and Snow',amount:166.89,day:2,start:'2026-12-01',end:'2027-11-30',note:'12 payments at 0% APR (loan ERYO-6GWH). No benefit to paying early.'});
+    const i=S.debts.findIndex(d=>d.id==='affirm'),nd=[
+      {id:'structube',rec:'aff_struct',name:'Affirm · Structube',balance:3497.29,orig:3497.29,apr:24.97,min:186.60,first:'2026-12-01',note:'Furniture, $3,497 at 24.97%. On schedule you pay $981 in interest ($4,478 total).'},
+      {id:'silk',rec:'aff_silk',name:'Affirm · Silk and Snow',balance:2002.71,orig:2002.71,apr:0,min:166.89,first:'2026-12-02',note:'0% APR, 12 payments ending Nov 2027. $365.04 already paid down.'}];
+    if(i>=0)S.debts.splice(i,1,...nd);else S.debts.push(...nd);
+    S.payoff={target:'structube',extra:700};
+    S.mig.affirm2=1;save();
+  }
+}
 
 Object.assign(I,{chev:'<path d="M6 9l6 6 6-6"/>',right:'<path d="M9 6l6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',back:'<path d="M15 6l-6 6 6 6"/>',del:'<path d="M21 5H9l-6 7 6 7h12z"/><path d="M17 9l-6 6M11 9l6 6"/>',insights:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',cloud:'<path d="M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z"/>'});
 
@@ -573,14 +595,47 @@ window.sheetGoal=i=>{const g=i>=0?S.goals[i]:{name:'',target:1000,saved:0,share:
 window.saveGoal=i=>{const g=i>=0?S.goals[i]:{id:uid(),icon:'goals',note:''};g.name=$('#g_n').value||'Goal';g.saved=+$('#g_s').value||0;g.target=+$('#g_t').value||1;g.share=+$('#g_sh').value;if(i<0)S.goals.push(g);save();closeSheet();render();toast('Goal saved')};
 
 function vDebt(){
-  const dsum=S.debts.reduce((s,d)=>s+(d.balance||0),0),pay=S.debts.reduce((s,d)=>s+(+d.min||0),0);
-  return `<div class="grid g4">${stat('Known balances',fmt(dsum),'tap a debt to add yours','neg')}${stat('Monthly payments',fmt(pay),'minimums')}</div><div class="sp"></div>
-  <div class="grid g2">${S.debts.map((d,i)=>`<button class="card tap" style="text-align:left" onclick="sheetDebt(${i})"><div class="row"><div class="ic" style="${tint('var(--debt)')}">${icon('card')}</div><div style="min-width:0;flex:1"><div style="font-weight:600">${esc(d.name)}</div><div class="note">${d.apr?d.apr+'% APR · ':''}${fmt(d.min)}/mo</div></div><div class="serif num" style="font-size:26px">${d.balance!=null?fmt(d.balance):'<span class="dim" style="font-size:15px;font-family:var(--sans)">add balance</span>'}</div></div>
-   ${d.balance&&d.min?`<div class="note" style="margin-top:10px">Paid off in ~${Math.ceil(d.balance/Math.max(d.min,1))} months at this rate${d.apr?` · ≈ ${fmt(d.balance*d.apr/100/12)}/mo interest`:''}</div>`:''}<div class="note" style="margin-top:6px">${esc(d.note||'')}</div></button>`).join('')}</div>
-  <div class="sp"></div><div class="card"><div class="ch">${icon('shield')}<h3>Order of attack</h3></div><div class="list">${[['Pay the Visa in full every month','At 20.99% APR, carrying a balance is the most expensive habit.'],['No more cash advances','Interest starts on day one, plus a $5 fee each time.'],['Roll finished payments into savings','When Affirm and Snap end, keep "paying" $146/mo to your emergency fund.']].map(([a,b],i)=>`<div class="li"><div class="ic" style="${tint('var(--gold)')}">${i+1}</div><div class="t"><b style="white-space:normal">${a}</b><span style="white-space:normal">${b}</span></div></div>`).join('')}</div></div>`;
+  const P=S.payoff||(S.payoff={target:'structube',extra:700});
+  const dsum=S.debts.reduce((s,d)=>s+(d.balance||0),0),pay=S.debts.reduce((s,d)=>s+((d.balance??1)>0?(+d.min||0):0),0);
+  const T=S.debts.find(d=>d.id===P.target);
+  const ml=(n)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);return d.toLocaleDateString('en-CA',{month:'short',year:'numeric'})};
+  const startOff=T&&T.first&&T.first>today()?1:0;
+  let card='';
+  if(T&&T.balance>0){
+    const sched=amort(T.balance,T.apr,T.min),fast=amort(T.balance,T.apr,T.min+(+P.extra||0)),saved=sched.interest-fast.interest;
+    const sav=+S.settings.savingsMonthly||0,freed=T.min+(+P.extra||0);
+    card=`<div class="card"><div class="ch">${icon('shield')}<h3>Payoff plan</h3><span class="r">${esc(T.name.replace('Affirm · ',''))} first</span></div>
+     <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px">
+      <div class="ins" style="padding:14px;gap:2px"><span class="note">Paid off</span><span class="serif num goldt" style="font-size:26px" id="po_when">${ml(fast.months-1+startOff)}</span><span class="note" id="po_m">${fast.months} payments</span></div>
+      <div class="ins" style="padding:14px;gap:2px"><span class="note">Interest</span><span class="serif num" style="font-size:26px" id="po_int">${fmt(fast.interest)}</span><span class="note">vs ${fmt(sched.interest)} on schedule</span></div>
+      <div class="ins" style="padding:14px;gap:2px"><span class="note">You keep</span><span class="serif num pos" style="font-size:26px" id="po_sv">${fmt(saved)}</span><span class="note">interest avoided</span></div></div>
+     <label class="f"><span class="between"><span>Extra each month, from your ${fmt(sav)} savings</span><b class="goldt num" id="po_x">${fmt(+P.extra||0)}</b></span><input type="range" min="0" max="${Math.max(1000,sav)}" step="50" value="${+P.extra||0}" style="${range(+P.extra||0,0,Math.max(1000,sav))}" oninput="rangeFill(this);updPayoff(+this.value)" onchange="S.payoff.extra=+this.value;save()"></label>
+     <div class="list" id="po_steps">${payoffSteps(T,fast,startOff,ml)}</div>
+     <div class="note" style="margin-top:12px">Make the extra payment yourself in the Affirm app under “Make a payment” and check that it lowers the balance. Then tap the loan below and log it.</div></div>`;
+  } else if(T){card=`<div class="card"><div class="ch">${icon('check')}<h3>${esc(T.name)} is paid off</h3></div><div class="note">Nice work. Keep sending that money to savings.</div></div>`}
+  return `<div class="grid g4">${stat('Known balances',fmt(dsum),'principal still owed','neg')}${stat('Monthly payments',fmt(pay),'scheduled minimums')}</div><div class="sp"></div>${card}<div class="sp"></div>
+  <div class="grid g2">${S.debts.map((d,i)=>{const a=d.balance>0&&d.min?amort(d.balance,d.apr,d.min):null,pct=d.orig?clamp(100-(d.balance||0)/d.orig*100,0,100):null;
+   return `<button class="card tap" style="text-align:left" onclick="sheetDebt(${i})"><div class="row"><div class="ic" style="${tint(d.apr>15?'var(--red)':d.apr===0?'var(--green)':'var(--debt)')}">${icon('card')}</div><div style="min-width:0;flex:1"><div style="font-weight:600">${esc(d.name)}</div><div class="note">${d.apr!=null?d.apr+'% APR · ':''}${fmt(d.min)}/mo</div></div><div class="serif num" style="font-size:26px">${d.balance!=null?fmt(d.balance):'<span class="dim" style="font-size:15px;font-family:var(--sans)">add balance</span>'}</div></div>
+   ${pct!=null?`<div class="bar" style="margin-top:12px"><i style="width:${pct}%;background:var(--green)"></i></div>`:''}
+   ${a?`<div class="note" style="margin-top:10px">${d.balance<=0?'Paid off':`${isFinite(a.months)?`~${a.months} payments left at the minimum`:'Payment does not cover interest'}${d.apr?` · ≈ ${fmt(d.balance*d.apr/1200)}/mo interest now`:''}`}</div>`:''}<div class="note" style="margin-top:6px">${esc(d.note||'')}</div></button>`}).join('')}</div>`;
 }
-window.sheetDebt=i=>{const d=S.debts[i];openSheet(`<h2>${esc(d.name)}</h2><div class="sub">${esc(d.note||'')}</div><label class="f"><span>Balance owed</span><input class="in num" id="d_b" type="number" inputmode="decimal" placeholder="Check your account" value="${d.balance??''}"></label><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><label class="f"><span>APR %</span><input class="in num" id="d_a" type="number" inputmode="decimal" value="${d.apr??''}"></label><label class="f"><span>Monthly payment</span><input class="in num" id="d_m" type="number" inputmode="decimal" value="${d.min??''}"></label></div><button class="btn gold block" onclick="saveDebt(${i})">Save</button>`)};
-window.saveDebt=i=>{const d=S.debts[i],v=id=>$(id).value;d.balance=v('#d_b')===''?null:+v('#d_b');d.apr=v('#d_a')===''?null:+v('#d_a');d.min=+v('#d_m')||0;save();closeSheet();render();toast('Saved')};
+function payoffSteps(T,fast,startOff,ml){
+  const visa=S.debts.find(d=>d.id==='visa'),silk=S.debts.find(d=>d.id==='silk'),sav=+S.settings.savingsMonthly||0,x=+S.payoff.extra||0;
+  const after=sav-x+T.min+x; // savings resume, plus the freed minimum
+  const steps=[];
+  if(visa&&visa.balance>0)steps.push(['Pay the Visa in full',`${fmt(visa.balance)} at ${visa.apr}%. Clear it with this statement${visa.due?' (due '+nice(visa.due)+')':''} and every one after.`]);
+  steps.push([`Attack ${T.name.replace('Affirm · ','')}: ${fmt(T.min+x)}/mo`,`${fmt(T.min)} automatic + ${fmt(x)} extra. Gone by ${ml(fast.months-1+startOff)}. Meanwhile ${fmt(Math.max(0,sav-x))}/mo still goes to your emergency fund.`]);
+  if(silk&&silk.balance>0)steps.push(['Let Silk and Snow run','0% interest, so paying early gains nothing. Its last payment is Nov 2027.']);
+  steps.push([`Then save ${fmt(after)}/mo`,`Your ${fmt(sav)} savings plus the ${fmt(T.min)} Structube no longer takes${silk&&silk.balance>0?`, and another ${fmt(silk.min)}/mo from Dec 2027`:''}.`]);
+  return steps.map(([a,b],i)=>`<div class="li"><div class="ic" style="${tint('var(--gold)')}">${i+1}</div><div class="t"><b style="white-space:normal">${a}</b><span style="white-space:normal">${b}</span></div></div>`).join('');
+}
+window.updPayoff=x=>{const T=S.debts.find(d=>d.id===S.payoff.target);if(!T)return;S.payoff.extra=x;const ml=(n)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+n);return d.toLocaleDateString('en-CA',{month:'short',year:'numeric'})};
+  const startOff=T.first&&T.first>today()?1:0,s=amort(T.balance,T.apr,T.min),f=amort(T.balance,T.apr,T.min+x);
+  $('#po_x').textContent=fmt(x);$('#po_when').textContent=ml(f.months-1+startOff);$('#po_m').textContent=f.months+' payments';$('#po_int').textContent=fmt(f.interest);$('#po_sv').textContent=fmt(s.interest-f.interest);$('#po_steps').innerHTML=payoffSteps(T,f,startOff,ml)};
+window.sheetDebt=i=>{const d=S.debts[i];openSheet(`<h2>${esc(d.name)}</h2><div class="sub">${esc(d.note||'')}</div>${d.balance>0?`<label class="f"><span>Log a payment (lowers the balance)</span><div class="row" style="gap:10px"><input class="in num" id="d_p" type="number" inputmode="decimal" placeholder="Amount paid" style="flex:1"><button class="btn gold" onclick="payDebt(${i})">Log</button></div></label>`:''}<label class="f"><span>Balance owed</span><input class="in num" id="d_b" type="number" inputmode="decimal" placeholder="Check your account" value="${d.balance??''}"></label><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><label class="f"><span>APR %</span><input class="in num" id="d_a" type="number" inputmode="decimal" value="${d.apr??''}"></label><label class="f"><span>Monthly payment</span><input class="in num" id="d_m" type="number" inputmode="decimal" value="${d.min??''}"></label></div><button class="btn ghost block" onclick="saveDebt(${i})">Save changes</button>`)};
+function debtDone(d){if(d.balance!=null&&d.balance<=0.005){d.balance=0;const r=d.rec&&S.recurring.find(x=>x.id===d.rec);if(r)r.active=false;return true}return false}
+window.payDebt=i=>{const d=S.debts[i],a=+$('#d_p').value;if(!(a>0))return toast('Enter the amount you paid');d.balance=Math.max(0,Math.round(((d.balance||0)-a)*100)/100);(d.paid=d.paid||[]).push({date:today(),amount:a});const done=debtDone(d);save();closeSheet();render();toast(done?`${d.name} is paid off!`:`Logged. ${fmt(d.balance)} left`)};
+window.saveDebt=i=>{const d=S.debts[i],v=id=>$(id).value;d.balance=v('#d_b')===''?null:+v('#d_b');d.apr=v('#d_a')===''?null:+v('#d_a');d.min=+v('#d_m')||0;debtDone(d);save();closeSheet();render();toast('Saved')};
 
 let DIN={n:4,avg:45},TRIP={name:'Banff weekend',km:340,l100:9,price:1.35,nights:2,hotel:160,food:90,act:80,days:3};
 function vTrips(){
