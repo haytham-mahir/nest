@@ -7,6 +7,7 @@ const fmtc=n=>fmt(n,true);
 const pct=n=>(isFinite(n)?Math.round(n*100):0)+'%';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const uid=()=>Math.random().toString(36).slice(2,10);
+const APP_V='5.1';
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -267,7 +268,7 @@ function migrate(){
       {id:'silk',rec:'aff_silk',name:'Affirm · Silk and Snow',balance:2002.71,orig:2002.71,apr:0,min:166.89,first:'2026-12-02',note:'0% APR, 12 payments ending Nov 2027. $365.04 already paid down.'}];
     if(i>=0)S.debts.splice(i,1,...nd);else S.debts.push(...nd);
     S.payoff={target:'structube',extra:700};
-    S.mig.affirm2=1;save();
+    S.mig.affirm2=1;save({remote:true});
   }
 }
 
@@ -783,7 +784,7 @@ function vSettings(){
    <div class="note" style="margin-bottom:16px">Your statement data is published only as an encrypted vault that your passphrase unlocks. Logs and edits are encrypted on this device before anything is saved or synced.</div>
    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px"><button class="btn ghost" onclick="exportData()">Export backup</button><label class="btn ghost">Import backup<input type="file" accept=".json" class="hidden" onchange="importData(this.files[0])"></label><button class="btn ghost" onclick="location.reload()">${icon('lock')} Lock</button><button class="btn ghost" onclick="LS.del('nest.key');toast('Passphrase needed next time')">Forget device</button></div>
    <button class="btn ghost block" style="color:var(--red)" onclick="if(confirm('Erase all your logs and edits on this device?')){S=freshState(BASE);save();render();toast('Reset')}">Reset local edits</button>
-   <div class="note" style="margin-top:16px">Scotiabank chequing Jan–Aug 2026 · Momentum Visa Dec 26, 2025 – Oct 25, 2026 · ${BASE.tx.length} transactions, reconciled to the cent.</div></div></div>`;
+   <div class="note" style="margin-top:16px">Scotiabank chequing Jan–Aug 2026 · Momentum Visa Dec 26, 2025 – Oct 25, 2026 · ${BASE.tx.length} transactions, reconciled to the cent. Nest version ${APP_V}.</div></div></div>`;
 }
 window.exportData=async()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([await encLocal(S)],{type:'application/json'}));a.download=`nest-backup-${today()}.json`;a.click();toast('Encrypted backup downloaded')};
 window.importData=async f=>{try{S=await decLocal(await f.text());save();render();toast('Backup restored')}catch(e){toast('Could not open that backup')}};
@@ -882,7 +883,7 @@ window.cloudConnect=async()=>{
     try{await auth.signInWithPopup(au,p)}catch(e){if(/popup-blocked|operation-not-supported/.test(e.code||''))return auth.signInWithRedirect(au,p);throw e}
   }catch(e){cloudSet(CL.user?'on':'signedout',/popup-closed|cancelled/.test(e.code||'')?'':'Sign-in did not complete.')}
 };
-window.cloudDisconnect=async()=>{LS.del('nest.sync');CL.unsub?.();CL.unsub=null;try{if(CL.fb)await CL.fb.auth.signOut(CL.fb.au)}catch(e){}CL.user=null;cloudSet('off');toast('Sync turned off on this device')};
+window.cloudDisconnect=async()=>{LS.del('nest.sync');LS.del('nest.cloudSeen');CL.unsub?.();CL.unsub=null;try{if(CL.fb)await CL.fb.auth.signOut(CL.fb.au)}catch(e){}CL.user=null;cloudSet('off');toast('Sync turned off on this device')};
 function cloudListen(){
   const {fs,ref}=CL.fb;CL.unsub?.();cloudSet('busy','Syncing…');
   CL.unsub=fs.onSnapshot(ref,async snap=>{
@@ -890,8 +891,9 @@ function cloudListen(){
     if(!snap.exists()){cloudPushNow(await encLocal(S));return}
     const d=snap.data();let R;
     try{R=await decLocal(JSON.stringify({iv:d.iv,ct:d.ct}))}catch(e){cloudSet('error','The cloud copy uses a different passphrase, so nothing was changed.');return}
-    const rt=R._t||0,lt=S._t||0;
-    if(rt>lt){S=R;save({remote:true});render();toast('Synced from your other device')}
+    const rt=R._t||0,lt=S._t||0,first=!LS.get('nest.cloudSeen');LS.set('nest.cloudSeen','1');
+    // a device joining for the first time always takes the cloud copy, so stale local data can never overwrite it
+    if(first||rt>lt){S=R;save({remote:true});render();toast('Synced from your other device')}
     else if(lt>rt){cloudPushNow(await encLocal(S));return}
     CL.last=Date.now();cloudSet('on');
   },e=>{
