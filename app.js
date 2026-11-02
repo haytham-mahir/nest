@@ -122,6 +122,7 @@ async function boot(key){
   for(const r of BASE.recurring) if(!S.recurring.find(x=>x.id===r.id)) S.recurring.push(JSON.parse(JSON.stringify(r)));
   S.settings={...BASE.settings,...S.settings};
   migrate();
+  mergeTx();
   onBoot();
   if(typeof cloudStart==='function')cloudStart();
 }
@@ -171,7 +172,7 @@ function plan(m){
 function loggedSince(after){const bt=S.balance.ts||0;return S.logs.filter(l=>!l.future&&(l.date>after||(l.date===after&&(l.ts||0)>bt))).reduce((s,l)=>s+l.amount,0)}
 function netNow(){
   const b=S.balance, t=today();
-  let n=b.chq-b.visa+loggedSince(b.asOf);
+  let n=b.chq-b.visa+loggedSince(b.asOf)+((S.bank&&S.bank.pending)||[]).reduce((s,p)=>s+p.amount,0);
   if(b.asOf<t) for(const e of events(addDays(b.asOf,1),t)) if(!e.log) n+=e.amount;
   return n;
 }
@@ -198,8 +199,23 @@ function safeToSpend(){
   if(total<0||min<0){status='red';label='Red zone'} else if(total/days<20||firstRed){status='amber';label='Careful'}
   return {np,days,bills,net,buf,total,perDay:total/days,perWeek:total/days*7,min,minPt,firstRed,status,label};
 }
-function monthSpend(key){ // logged spending this month per budget id
-  const o={}; for(const l of S.logs) if(!l.future&&ym(l.date)===key&&l.amount<0) o[l.cat]=(o[l.cat]||0)-l.amount; return o;
+function catMap(){const m={};for(const b of S.budgets)for(const c of (b.cats||[]))m[c]=b.id;return m}
+function afterSync(l){const ls=S.bank&&S.bank.lastSync;return !ls||l.date>ls.date||(l.date===ls.date&&(l.ts||0)>ls.ts)}
+function monthSpend(key,day){ // spending this month per budget id: synced bank transactions + manual logs made after the last sync
+  const o={},cm=catMap(),ls=S.bank&&S.bank.lastSync;
+  if(ls)for(const t of S.bank.tx){if(ym(t[0])!==key||(day&&t[0]!==day))continue;const id=cm[t[4]];if(id)o[id]=(o[id]||0)-t[2]}
+  for(const l of S.logs) if(!l.future&&ym(l.date)===key&&(!day||l.date===day)&&l.amount<0&&afterSync(l)) o[l.cat]=(o[l.cat]||0)-l.amount;
+  return o;
+}
+function todayAllow(){ // exactly what's left to spend today
+  const t=today(),al=allowance(),s=safeToSpend(),m=mode(t);
+  const wants=budgetsFor(m).filter(b=>b.group==='want'&&!b.sinking),ids=new Set(wants.map(b=>b.id));
+  const sd=monthSpend(ym(t),t);let spent=0;for(const k in sd)if(ids.has(k))spent+=sd[k];spent=Math.max(0,spent);
+  const usedBefore=al.used-spent,remStart=Math.max(0,al.budget-usedBefore),cashStart=Math.max(0,s.total+spent);
+  const byBudget=remStart/al.left,byCash=cashStart/s.days,allowed=Math.max(0,Math.min(byBudget,byCash));
+  const needs=budgetsFor(m).filter(b=>b.group==='need'),ms=monthSpend(ym(t));
+  return {allowed,spent,left:allowed-spent,byCash:byCash<byBudget,remStart,cashStart,days:s.days,mleft:al.left,week:Math.max(0,Math.min(remStart-spent,(allowed*7)-spent,cashStart-spent)),
+    needs:needs.map(b=>({id:b.id,name:b.name,amt:b.amt,used:ms[b.id]||0})),s,al};
 }
 function allowance(){
   const t=today(), d=pd(t), m=mode(t), total=dim(d.getFullYear(),d.getMonth()+1), left=total-d.getDate()+1;
@@ -254,6 +270,61 @@ function migrate(){
     S.mig.affirm2=1;save();
   }
 }
+
+/* ---------- bank sync (weekly) ---------- */
+const RULES={"R": [["Ca Coop|CA Coop", "Fuel", "need"], ["Mr\\. Lube|MR\\. LUBE", "Car maintenance", "need"], ["Century 21|Maximum Realty", "Rent", "need"], ["Questrade", "Investing (Questrade)", "save"], ["Sceneplus|Scene\\+", "Cash back", "income"], ["Cash Advance|Credit Card/Loc|Crd\\. Card", "Transfer", "transfer"], ["Temu|Red Apple|Canadian Tire|Ikea|IKEA|Structube|Silk and Snow", "Shopping", "want"], ["Kinjo|Quesada|Pita Blast|Subway|Wendy|Popeyes|Taco", "Fast food", "want"], ["Mobil@|Esso|Circle K", "Fuel", "need"], ["Anthropic", "Subscriptions", "want"], ["Workspace", "Web business tools", "business"], ["Payroll", "Salary", "income"], ["^GST ", "GST/HST credit", "income"], ["Tax refund", "Tax refund", "income"], ["ABM deposit", "Cash deposit", "income"], ["^Deposit ", "E-transfer in", "income"], ["CASH BACK REDEEMED", "Cash back", "income"], ["MB-Transfer|Credit Card/LOC payment|PAYMENT FROM|SCOTIABANK TRANSIT|CASH ADVANCE TO", "Transfer", "transfer"], ["Rent/lease", "Rent", "need"], ["DIRECT ENERGY", "Electricity & gas (home)", "need"], ["SHAW", "Internet", "need"], ["Virgin Plus|VIRGIN PLUS", "Phone", "need"], ["Insurance", "Car insurance", "need"], ["ALBERTA MOTOR", "AMA membership", "need"], ["Snapfi", "Snap Finance (lease)", "debt"], ["Affirm", "Affirm (BNPL)", "debt"], ["Service charge|ANNUAL FEE|CASH ADVANCE FEE|INTEREST CHARGES|int\\'l ABM fee", "Bank fees & interest", "fee"], ["Nofrills|NOFRILLS|Costco Wholesal|COOP LACOMBE FOOD|Dollarama|Dollar Tree|DOLLAR TREE", "Groceries & household", "need"], ["GB P@P|Costco Gas|Petro-Canada|Shell|CA Coop Lacombe", "Fuel", "need"], ["MR. LUBE", "Car maintenance", "need"], ["Rexall|PHARMACIE", "Pharmacy & health", "need"], ["Immigration Canada|Lacombe Registr|Lacombe city ma|Lacombe City Ma", "Government & registry", "need"], ["Tim Hortons|TIM HORTONS|Starbucks|STARBUCKS|SBUX|Milly Oak|Espresso Lab|Caffe|Ona Cafe", "Coffee & caf\u00e9s", "want"], ["Macs Con|MACS CONV", "Convenience store", "want"], ["Mcdonald|MCDONALD|MC DONALDS|A W Lacombe|KFC|Dairy Queen|DAIRY QUEEN|Domino|DOMINOS|Buster|Burger|PIZZA SQUARE", "Fast food", "want"], ["Uber Canada/|UBER CANADA/UBEREATS|DOORDASH|Glovo|GLOVO|Dd/|Uberdirect", "Food delivery", "want"], ["Tasty Bites|Indian|Pho Rice|Mr Mikes|Tollers|TOLLERS|SUSHI|REST L HELICE|JACKIES|PATISSERIE", "Restaurants", "want"], ["Uber Holdings", "Rides (Uber)", "want"], ["Netflix|Apple.Com|Playstation|BELL MEDIA|Claude|Anthropic", "Subscriptions", "want"], ["Steam|STEAM", "Gaming", "want"], ["Google|GOOGLE|SITEGROUND|Siteground|ELEMENTOR|Envato|HOSTINO", "Web business tools", "business"], ["Amazon|AMZN|Nowco|Reds Sports|Planet Sport", "Shopping", "want"], ["ALLIANCE FRANCAISE", "Education", "need"], ["Europcar|Airbnb|AIRBNB|Global Exchange|Shared ABM|Busbud|BELBIM|Belbim|Ma$| Tr$|Istanbul|ISTANBUL|NOUAC|Ambassador Port|Yyz|FES$|Wraqi|Afrq|Recept|Marjkenitra|Odeal|Myc Dis|Dem Muzecil|F4 01", "Travel", "want"], ["ABM withdrawal|Withdrawal|INTERAC CANADA", "Cash & e-transfers out", "want"]], "P": [["Century 21|Maximum Realty", "Century 21 (rent)"], ["Questrade", "Questrade"], ["Sceneplus", "Scene+ cash credit"], ["Temu", "Temu"], ["Red Apple", "Red Apple"], ["Canadian Tire", "Canadian Tire"], ["Kinjo", "Kinjo Sushi"], ["Quesada", "Quesada Burritos"], ["Pita Blast", "Pita Blast"], ["Mobil@", "Mobil gas"], ["Circle K", "Circle K"], ["Ikea|IKEA", "IKEA"], ["Mr\\. Lube|MR\\. LUBE", "Mr. Lube"], ["Lacombe City|Lacombe city", "City of Lacombe"], ["Tim Hortons|TIM HORTONS", "Tim Hortons"], ["Starbucks|STARBUCKS|SBUX", "Starbucks"], ["Milly Oak", "Milly Oak Caf\u00e9"], ["Macs Con|MACS CONV", "Mac's Convenience"], ["Mcdonald|MCDONALD|MC DONALDS", "McDonald's"], ["A W Lacombe", "A&W"], ["KFC", "KFC"], ["Dairy Queen|DAIRY QUEEN", "Dairy Queen"], ["Domino|DOMINOS", "Domino's"], ["Buster", "Buster's Pizza"], ["Uber Canada/|UBEREATS|Uberdirect", "Uber Eats"], ["DOORDASH|Dd/", "DoorDash"], ["Glovo|GLOVO", "Glovo"], ["Uber Holdings", "Uber rides"], ["Nofrills|NOFRILLS", "No Frills"], ["Costco Gas", "Costco Gas"], ["Costco", "Costco"], ["GB P@P", "Co-op Gas Bar"], ["COOP LACOMBE FOOD", "Co-op Food"], ["CA Coop", "Co-op Lacombe"], ["Dollarama", "Dollarama"], ["Dollar Tree|DOLLAR TREE", "Dollar Tree"], ["Petro-Canada", "Petro-Canada"], ["Shell", "Shell"], ["Essex", "Essex Group (rent)"], ["DIRECT ENERGY", "Direct Energy"], ["SHAW", "Shaw Internet"], ["Virgin|VIRGIN", "Virgin Plus"], ["Alta Motor", "AMA Insurance"], ["ALBERTA MOTOR", "AMA Membership"], ["Snapfi", "Snap Finance"], ["Affirm", "Affirm"], ["Netflix", "Netflix"], ["Apple", "Apple"], ["Playstation", "PlayStation"], ["BELL MEDIA", "Crave (Bell Media)"], ["Claude|Anthropic", "Claude"], ["Steam|STEAM", "Steam"], ["Google \\*Ads|Google\\*Ads|Google", "Google Ads"], ["Workspace", "Google Workspace"], ["SITEGROUND|Siteground", "SiteGround"], ["ELEMENTOR", "Elementor"], ["Envato", "Envato"], ["HOSTINO", "Hostino"], ["Amazon|AMZN", "Amazon"], ["Nowco", "Home Hardware"], ["Reds Sports", "Reds Sports"], ["Planet Sport", "Planet Sport"], ["Rexall", "Rexall"], ["PHARMACIE", "Pharmacie Tazi"], ["Immigration", "IRCC (Immigration Canada)"], ["Registr", "Lacombe Registry"], ["city ma|City Ma", "City of Lacombe"], ["MR. LUBE", "Mr. Lube"], ["ALLIANCE", "Alliance Fran\u00e7aise"], ["Europcar", "Europcar"], ["Airbnb|AIRBNB", "Airbnb"], ["Global Exchange", "Global Exchange (FX)"], ["Busbud", "Busbud"], ["BELBIM|Belbim", "Istanbul transit"], ["Tasty Bites", "Tasty Bites"], ["Indian", "The 1947 Indian"], ["Pho Rice", "Pho Rice"], ["Mr Mikes", "Mr Mikes"], ["Tollers|TOLLERS", "Tollers Bistro"], ["Ona Cafe", "Ona Caf\u00e9"]]};
+const RX={R:RULES.R.map(([r,c,g])=>[new RegExp(r),c,g]),P:RULES.P.map(([r,n])=>[new RegExp(r),n])};
+const TMAP={'Pos Purchase':'Point of sale purchase','Correction':'Error correction','Payroll Deposit':'Payroll dep.','Rent/Lease':'Rent/lease','Insurance':'Insurance','Service Charge':'Service charge','Withdrawal':'Withdrawal','Deposit':'Deposit','Miscellaneous Payment':'Payment','Customer Transfer Dr.':'Credit Card/LOC payment','Crd. Card Bill Payment':'Credit Card/LOC payment','Customer Transfer Cr.':'MB-Transfer from'};
+const cleanM=d=>String(d).replace(/^(Apos|Opos|Aips|Ls|Fpos|Vpos)\s+/,'').replace(/\s+/g,' ').trim();
+function catOf(type,m){const s=type+' '+m;for(const [rx,c,g] of RX.R)if(rx.test(s))return [c,g];return ['Other','want']}
+function prettyOf(type,m,amt){
+  if(type==='Payroll dep.')return 'Edge Marketing & Design — payroll';
+  if(type==='Service charge')return 'Scotiabank monthly fee';
+  if(/Cash Advance/i.test(m))return 'Cash advance from line of credit';
+  if(type==='Credit Card/LOC payment')return 'Credit card / LOC payment';
+  if(type==='Withdrawal'||type==='Deposit')return 'Interac e-Transfer '+(amt>0?'in':'out');
+  if(type==='Insurance')return 'AMA Insurance';
+  if(/PAYMENT FROM|Payment From/.test(m))return 'Visa payment received';
+  for(const [rx,n] of RX.P)if(rx.test(m))return n;
+  return m.replace(/^[\d.,]+\s+/,'').replace(/\s+(Lacom|Red D|Edmon|Toron|Bramp)$/,'').slice(0,34);
+}
+function txKey(t){return t[0]+'|'+t[1]+'|'+(+t[2]).toFixed(2)}
+function mergeTx(){
+  if(!BASE.tx0)BASE.tx0=BASE.tx.slice();if(!BASE.months0)BASE.months0=BASE.statements.chq_months.slice();
+  const extra=(S.bank&&S.bank.tx)||[];
+  BASE.tx=BASE.tx0.concat(extra).sort((a,b)=>a[0].localeCompare(b[0])||a[1]-b[1]);
+  BASE.statements.chq_months=[...new Set(BASE.months0.concat((S.bank&&S.bank.months)||[]))].sort();
+  H=null;
+}
+/* raw = {asOf, chq:{balance, tx:[[date,type,desc,amount]]}, visa:{balance,pending, tx:[[date,desc,amount]]}, loc:{balance,pending,apr,min,due,limit}} */
+window.nestImport=raw=>{
+  S.bank=S.bank||{tx:[],months:[]};
+  const items=[];
+  for(const [d,ty,desc,a] of (raw.chq?.tx||[]))items.push({date:d,acct:0,type:TMAP[ty]||ty,m:cleanM(desc),amount:+a});
+  for(const [d,desc,a] of (raw.visa?.tx||[]))items.push({date:d,acct:1,type:'Visa',m:cleanM(desc),amount:+a});
+  // drop pre-authorisation holds (a hold, then a "Correction" giving it back)
+  const drop=new Set();
+  items.forEach((c,i)=>{if(c.type!=='Error correction')return;const j=items.findIndex((u,k)=>!drop.has(k)&&k!==i&&u.acct===c.acct&&u.type!=='Error correction'&&Math.abs(u.amount+c.amount)<.005&&Math.abs(diffDays(u.date,c.date))<=3&&u.m.slice(0,6).toLowerCase()===c.m.slice(0,6).toLowerCase());if(j>=0){drop.add(i);drop.add(j)}});
+  const rows=items.filter((_,k)=>!drop.has(k)).map(t=>{let [c,g]=catOf(t.type,t.m);if(t.type==='Error correction'){c='Refund';g='refund';for(const [rx,cc,gg] of RX.R)if(rx.test(t.m)){c=cc;g=gg;break}}return [t.date,t.acct,Math.round(t.amount*100)/100,prettyOf(t.type,t.m,t.amount),c,g,0]});
+  // de-duplicate against statements and earlier syncs
+  const have={};for(const t of (BASE.tx0||BASE.tx).concat(S.bank.tx)){const k=txKey(t);have[k]=(have[k]||0)+1}
+  let added=0;for(const r of rows){const k=txKey(r);if(have[k]>0){have[k]--;continue}S.bank.tx.push(r);added++}
+  S.bank.tx.sort((a,b)=>a[0].localeCompare(b[0]));
+  // whole months now covered
+  const am=ym(raw.asOf);for(const t of S.bank.tx){const m=ym(t[0]);if(m<am&&t[1]===0&&!S.bank.months.includes(m)&&m>BASE.months0?.at?.(-1))S.bank.months.push(m)}
+  // balances
+  const visaOwed=Math.round(((+raw.visa?.balance||0)+(+raw.visa?.pending||0))*100)/100;
+  S.balance={chq:+raw.chq.balance,visa:visaOwed,asOf:raw.asOf,ts:Date.now(),assumed:false};
+  const visa=S.debts.find(d=>d.id==='visa');if(visa&&raw.visa){visa.balance=visaOwed;if(raw.visa.due)visa.due=raw.visa.due;if(raw.visa.min!=null)visa.min=+raw.visa.min}
+  const loc=S.debts.find(d=>d.id==='loc');if(loc&&raw.loc){loc.name='ScotiaLine line of credit';loc.balance=Math.round(((+raw.loc.balance||0)+(+raw.loc.pending||0))*100)/100;if(raw.loc.apr)loc.apr=+raw.loc.apr;loc.min=Math.max(+raw.loc.min||0,Math.round(loc.balance*(loc.apr||0)/1200*100)/100);if(raw.loc.limit)loc.limit=+raw.loc.limit;if(raw.loc.due)loc.due=raw.loc.due}
+  // scheduled chequing bills that should have come out in the last 6 days but have not posted yet
+  const pend=[];
+  for(const r of S.recurring){if(r.kind==='income'||r.acct!=='chq')continue;for(const d of occurrences(r,addDays(raw.asOf,-6),raw.asOf)){const seen=S.bank.tx.concat(BASE.tx0||[]).some(t=>t[1]===0&&Math.abs(diffDays(t[0],d))<=6&&Math.abs(-t[2]-r.amount)<=Math.max(2,r.amount*.12));if(!seen)pend.push({id:r.id,name:r.name,amount:-r.amount,date:d})}}
+  S.bank.pending=pend;
+  S.bank.lastSync={date:raw.asOf,ts:Date.now(),added,accounts:{chq:+raw.chq.balance,visa:+raw.visa?.balance||0,visaPending:+raw.visa?.pending||0,loc:+raw.loc?.balance||0,locPending:+raw.loc?.pending||0}};
+  mergeTx();save();if(typeof render==='function')render();
+  return {added,pending:pend.map(p=>p.name+' '+p.amount),balance:S.balance};
+};
 
 Object.assign(I,{chev:'<path d="M6 9l6 6 6-6"/>',right:'<path d="M9 6l6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',back:'<path d="M15 6l-6 6 6 6"/>',del:'<path d="M21 5H9l-6 7 6 7h12z"/><path d="M17 9l-6 6M11 9l6 6"/>',insights:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',cloud:'<path d="M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z"/>'});
 
@@ -386,25 +457,30 @@ function evRow(e,showDate=true){
 }
 
 function vHome(){
-  const s=safeToSpend(),al=allowance(),t=today(),f=forecast(35);
+  const s=safeToSpend(),al=allowance(),t=today(),f=forecast(35),ta=todayAllow();
   const prevPay=events(addDays(t,-20),t).filter(e=>e.kind==='income'&&e.r.id.startsWith('pay')).at(-1);
   const cyc=s.np&&prevPay?diffDays(prevPay.date,s.np.date):15,frac=1-s.days/cyc;
   const col={green:'var(--green)',amber:'var(--amber)',red:'var(--red)'}[s.status];
   const up=events(addDays(t,1),addDays(t,10)).slice(0,5);
   AFTER=()=>lineChart($('#mf'),f.pts,{buffer:s.buf,h:120,mini:true,marks:f.evs.filter(e=>e.kind==='income'&&e.r?.id.startsWith('pay')).map(e=>({date:e.date,c:'#45d6a0'}))});
   const alert=s.status==='red'?`<div class="alert">${icon('alert')}<div><b>You're in the red zone</b><p>${s.total<0?`After bills due before payday and your ${fmt(s.buf)} buffer, you're ${fmt(-s.total)} short. Essentials only until ${nice(s.np?.date||t)}.`:`Your balance is projected to dip to ${fmt(s.min)} on ${nice(s.minPt.date)}. Hold off on wants.`}</p></div></div>`:'';
-  const setb=S.balance.assumed?`<div class="alert ag" data-act="balance">${icon('refresh')}<div><b>Add today's balances</b><p>Nest is using your last statements (Aug 31 / Oct 25). Tap to enter what your bank app shows now.</p></div></div>`:'';
+  const ls=S.bank&&S.bank.lastSync,stale=ls&&diffDays(ls.date,t)>=8;
+  const setb=stale?`<div class="alert ag">${icon('refresh')}<div><b>Time for your weekly bank sync</b><p>Last synced ${nice(ls.date,{dow:1})}. Ask Claude to sync your Scotiabank accounts, or tap Update to type today's balances.</p></div></div>`:S.balance.assumed?`<div class="alert ag" data-act="balance">${icon('refresh')}<div><b>Add today's balances</b><p>Nest is using your last statements (Aug 31 / Oct 25). Tap to enter what your bank app shows now.</p></div></div>`:'';
   const ins=insights();
   const logs=S.logs.filter(l=>!l.future).slice(-4).reverse();
-  return `${alert}${setb}
-  <div class="card hero ${s.status}">
-    <div class="hero-in">
-      <div class="ring">${ringSvg(frac,col)}<div class="rc"><div class="rv num">${s.days}</div><div class="rl">day${s.days>1?'s':''} to payday</div><div class="show-m" style="margin-top:10px">${pill(s)}</div></div></div>
-      <div class="hero-txt"><div class="between"><span class="eyebrow">Safe to spend today</span><span class="hide-m">${pill(s)}</span></div>
-        <div class="big num"><span data-count="${Math.max(0,s.perDay)}" data-pre="$">${fmt(Math.max(0,s.perDay))}</span><small>/day</small></div>
-        <div class="muted" style="font-size:14px">${s.total>0?`${fmt(s.total)} free until ${s.np?nice(s.np.date,{dow:1}):'payday'}`:'Nothing free until payday. Stick to essentials.'}</div></div>
+  return `${setb}
+  <div class="card today ${s.status}">
+    <div class="t-top"><span class="eyebrow">${nice(t,{dow:1})}</span>${pill(s)}</div>
+    <div class="t-main">
+      <div class="t-ring">${ringSvg(ta.allowed>0?Math.max(0,ta.left)/ta.allowed:0,ta.left<0?'var(--red)':col,200,9)}<div class="rc"><div class="t-lbl">Left to spend today</div><div class="t-num num ${ta.left<0?'neg':''}"><span data-count="${Math.abs(ta.left)}" data-pre="${ta.left<0?'−$':'$'}">${ta.left<0?'−':''}${fmt(Math.abs(ta.left))}</span></div><div class="t-sub">${ta.spent>0?`${fmt(ta.spent)} spent of ${fmt(ta.allowed)}`:`of ${fmt(ta.allowed)} today`}</div></div></div>
+      <div class="t-side">
+        <p class="t-why">${s.total<0?`Extras are paused until ${s.np?nice(s.np.date,{dow:1}):'payday'}: after rent, bills and what you owe on the Visa, you're ${fmt(-s.total)} under your ${fmt(s.buf)} safety buffer.${ta.spent>0?` Today's ${fmt(ta.spent)} comes out of that.`:''}`:ta.left<0?`You're ${fmt(-ta.left)} over today. Tomorrow's number shrinks a little to make up for it.`:ta.allowed<1?`Nothing to spend on extras until ${s.np?nice(s.np.date,{dow:1}):'payday'}. Bills and groceries are covered.`:ta.byCash?`Held back by cash: ${fmt(ta.cashStart)} free across ${ta.days} day${ta.days>1?'s':''} until payday.`:`Your fun budget has ${fmt(ta.remStart)} left for ${ta.mleft} day${ta.mleft>1?'s':''} this month.`}${s.total>=0?' Rent, bills, savings and groceries are already set aside.':''}</p>
+        <div class="t-chips"><div><span>This week</span><b class="num">${fmt(ta.week)}</b></div><div><span>Payday</span><b>${s.np?(s.days===1?'Tomorrow':s.days+' days'):'—'}</b></div><div><span>Net cash</span><b class="num">${fmt(s.net)}</b></div></div>
+        <div class="t-act"><button class="btn gold" data-act="add">${icon('plus')} Log a spend</button><button class="btn ghost" data-act="balance">${icon('refresh')} Update</button></div>
+      </div>
     </div>
-    <div class="trio"><div><div class="l">This week</div><div class="v num">${fmt(Math.max(0,Math.min(s.total,s.perDay*7)))}</div></div><div><div class="l">Bills due</div><div class="v num">${fmt(s.bills)}</div></div><div><div class="l">Net cash</div><div class="v num">${fmt(s.net)}</div></div></div>
+    <div class="t-needs">${ta.needs.filter(n=>n.amt>0).map(n=>`<div><div class="between"><span>${esc(n.name.split(' &')[0])}</span><b class="num">${fmt(Math.max(0,n.amt-n.used))} <i>left</i></b></div>${bar(n.used,n.amt,n.used>n.amt?'var(--red)':'var(--blue)')}</div>`).join('')}</div>
+    <div class="t-sync">${syncLine()}</div>
   </div>
   <div class="sp"></div>
   <div class="grid gh">
@@ -745,6 +821,11 @@ $('#lockform').addEventListener('submit',async e=>{
   }catch(err){hideSplash();$('#lockerr').textContent='That passphrase didn’t work. Try again.';const i=$('#pass');i.classList.remove('shake');void i.offsetWidth;i.classList.add('shake')}
 });
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+function syncLine(){const ls=S.bank&&S.bank.lastSync,p=(S.bank&&S.bank.pending)||[];
+  if(!ls)return `<span class="dim">Balances entered by hand ${S.balance.asOf?'· '+nice(S.balance.asOf):''}</span>`;
+  const when=new Date(ls.ts).toLocaleString('en-CA',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  return `<span>${icon('check')} Scotiabank synced ${when}</span>${p.length?`<span class="dim">· holding ${p.map(x=>esc(x.name.split(' —')[0])+' '+fmt(-x.amount)).join(', ')} not yet posted</span>`:''}`}
 
 /* ---------- Cloud sync: Firebase (Google sign-in + Firestore), ciphertext only ---------- */
 const FB_CFG={apiKey:"AIzaSyAHPbr8HPUim5JSZReiPRr5nKHgL_T-OlA",authDomain:"nest-household-f73fa.firebaseapp.com",projectId:"nest-household-f73fa",storageBucket:"nest-household-f73fa.firebasestorage.app",messagingSenderId:"530627324315",appId:"1:530627324315:web:8208e8876855ea84c4993e"};
